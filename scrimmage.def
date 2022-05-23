@@ -1,0 +1,106 @@
+Bootstrap: docker
+From: ubuntu:20.04
+
+%post -c /bin/bash
+# Install initial dependencies and setup .bashrc
+apt-get update
+apt-get install -y \
+    gnupg
+apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+apt-get update
+apt-get install -y \
+    cmake \
+    software-properties-common \
+    cppcheck
+apt-get install -y \
+    python3-pip \
+    python3-venv
+apt-get install -y \
+    git \
+    ninja-build \
+    clang \
+    ruby-full \
+    build-essential \
+    zlib1g-dev \
+    libgeographic-dev \
+    libeigen3-dev \
+    librapidxml-dev \
+    libboost-thread-dev \
+    libboost-date-time-dev \
+    libboost-graph-dev \
+    libboost-iostreams-dev \
+    libboost-program-options-dev \
+    libboost-regex-dev \
+    libboost-filesystem-dev \
+    libboost-system-dev \
+    libboost-chrono-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libgeographic-dev \
+    protobuf-compiler-grpc \
+    libgrpc++-dev\
+    libgrpc-dev \
+    libpython3-dev \
+    doxygen \
+    python3-sphinx \
+    sphinx-rtd-theme-common \
+    ccache \
+    libbullet-dev \
+    libopencv-dev \
+    libvtk7-dev
+add-apt-repository ppa:kevin-demarco/scrimmage
+apt-get update
+apt-get install -y scrimmage-dependencies
+rm -rf /var/lib/apt/lists/*
+source /opt/scrimmage/*/setup.sh
+
+git clone https://github.com/gtri/scrimmage.git
+
+# Build a python virtual environment
+#cd /root
+#cp ./python/requirements-3.8.txt .
+python3 -m venv env
+source /env/bin/activate
+pip3 install wheel
+cd /scrimmage/python/
+pip3 install -r requirements-3.8.txt
+
+#FROM dependencies as builder
+
+# Copy repo code into image
+#mkdir -p /root/scrimmage/scrimmage
+#cp -r /scrimmage /root/scrimmage/scrimmage
+
+# Build scrimmage core, plugins, and documentation
+export HOME=/opt
+cd /scrimmage
+source /env/bin/activate
+mkdir -p build
+cd build
+#source ~/.bashrc
+source ${HOME}/.scrimmage/setup.bash
+cmake .. -G Ninja \
+    -DPYTHON_MIN_VERSION=3.6 \
+    -DBUILD_TESTS=OFF\
+    -DBUILD_DOCS=OFF \
+    -DCMAKE_CXX_FLAGS="-Werror -Wno-error=deprecated-copy"
+ninja
+
+chmod -R 0755 /opt
+
+# Note: gtest produces a deprecated-copy warning. Ignore this.
+# install python package and run tests
+cd /scrimmage/python
+source /env/bin/activate
+python setup.py develop
+
+cd /scrimmage/build
+source ${HOME}/.scrimmage/setup.bash
+export SCRIMMAGE_MISSION_PATH=$SCRIMMAGE_MISSION_PATH:$PWD
+scrimmage ../missions/straight-no-gui.xml
+scrimmage ../missions/straight_jsbsim.xml
+
+cd /scrimmage
+#/bin/bash -c "source /env/bin/activate && source ${HOME}/.scrimmage/setup.bash && py.test python/tests"
+
+ echo "source /env/bin/activate && source ${HOME}/.scrimmage/setup.bash" >> $SINGULARITY_ENVIRONMENT
